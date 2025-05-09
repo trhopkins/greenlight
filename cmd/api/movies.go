@@ -124,11 +124,31 @@ func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// headers := make(http.Header)
-	// headers.Set("Location", fmt.Sprintf("/v1/movies/%d", movie.Id))
-
 	err = app.writeJSON(w, http.StatusOK, envelope{"movie": movie}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
+}
+
+func (app *application) deleteMovieHandler(w http.ResponseWriter, r *http.Request) {
+  id, err := app.readIdParam(r)
+  if err != nil {
+    app.notFoundResponse(w, r)
+    return
+  }
+
+  err = app.models.Movies.Delete(id)
+  if err != nil {
+    if errors.Is(err, data.ErrNoRecord) {
+      app.notFoundResponse(w, r)
+    } else {
+      app.serverErrorResponse(w, r, err)
+    }
+    return
+  }
+
+  err = app.writeJSON(w, http.StatusOK, envelope{"message": "movie successfully deleted"}, nil)
+  if err != nil {
+    app.serverErrorResponse(w, r, err)
+  }
 }
