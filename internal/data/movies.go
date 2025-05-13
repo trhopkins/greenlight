@@ -112,8 +112,8 @@ func (m MovieModel) Delete(id int64) error {
     DELETE FROM movies
     WHERE id = $1`
 
-  ctx, close := context.WithTimeout(context.Background(), 3*time.Second)
-  defer close()
+	ctx, close := context.WithTimeout(context.Background(), 3*time.Second)
+	defer close()
 
 	result, err := m.DB.ExecContext(ctx, query, id)
 	if err != nil {
@@ -149,3 +149,44 @@ func ValidateMovie(v *validator.Validator, movie *Movie) {
 	v.Check(validator.Unique(movie.Genres), "genres", "must not contain duplicate values")
 }
 
+func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*Movie, error) {
+	query := `
+    SELECT id, created_at, title, year, genres, version
+    FROM movies
+    ORDER BY id`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := m.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	movies := []*Movie{}
+
+	for rows.Next() {
+		var movie Movie
+		err := rows.Scan(
+			&movie.Id,
+			&movie.CreatedAt,
+			&movie.Title,
+			&movie.Year,
+			pq.Array(&movie.Genres),
+			&movie.Version,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		movies = append(movies, &movie)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return movies, nil
+}
