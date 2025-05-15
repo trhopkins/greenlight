@@ -170,44 +170,41 @@ func (app *application) deleteMovieHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (app *application) listMoviesHandler(w http.ResponseWriter, r *http.Request) {
-	var input struct {
-		Title  string
-		Genres []string
-		data.Filters
-	}
+    var input struct {
+        Title  string
+        Genres []string
+        data.Filters
+    }
 
-	v := validator.New()
-	qs := r.URL.Query()
+    v := validator.New()
 
-	input.Title = app.readString(qs, "title", "")
-	input.Genres = app.readCSV(qs, "title", []string{})
+    qs := r.URL.Query()
 
-	// data.Filters
-	input.Page = app.readInt(qs, "page", 1, v)
-	input.PageSize = app.readInt(qs, "page_size", 20, v)
-	input.Sort = app.readString(qs, "sort", "id")
+    input.Title = app.readString(qs, "title", "")
+    input.Genres = app.readCSV(qs, "genres", []string{})
 
-	data.ValidateFilters(v, data.Filters{
-		Page:         input.Page,
-		PageSize:     input.PageSize,
-		Sort:         input.Sort,
-		SortSafelist: []string{"id", "title", "year", "runtime", "-id", "-title", "-year", "-runtime"},
-	})
+    input.Filters.Page = app.readInt(qs, "page", 1, v)
+    input.Filters.PageSize = app.readInt(qs, "page_size", 20, v)
 
-	if !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
-		return
-	}
+    input.Filters.Sort = app.readString(qs, "sort", "id")
+    input.Filters.SortSafelist = []string{"id", "title", "year", "runtime", "-id", "-title", "-year", "-runtime"}
 
-  movies, err := app.models.Movies.GetAll(input.Title, input.Genres, input.Filters)
-  if err != nil {
-    app.serverErrorResponse(w, r, err)
-    return
-  }
+    if data.ValidateFilters(v, input.Filters); !v.Valid() {
+        app.failedValidationResponse(w, r, v.Errors)
+        return
+    }
 
-  err = app.writeJSON(w, http.StatusOK, envelope{"movies": movies}, nil)
-  if err != nil {
-    app.serverErrorResponse(w, r, err)
-    return
-  }
+    // Call the GetAll() method to retrieve the movies, passing in the various filter 
+    // parameters.
+    movies, err := app.models.Movies.GetAll(input.Title, input.Genres, input.Filters)
+    if err != nil {
+        app.serverErrorResponse(w, r, err)
+        return
+    }
+    
+    // Send a JSON response containing the movie data.
+    err = app.writeJSON(w, http.StatusOK, envelope{"movies": movies}, nil)
+    if err != nil {
+        app.serverErrorResponse(w, r, err)
+    }
 }
