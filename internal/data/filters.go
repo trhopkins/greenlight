@@ -23,7 +23,7 @@ func ValidateFilters(v *validator.Validator, f Filters) {
 	v.Check(validator.PermittedValue(f.Sort, f.SortSafelist...), "sort", "invalid sort value")
 }
 
-func (f Filters) SortColumn() string {
+func (f Filters) sortColumn() string {
 	if slices.Contains(f.SortSafelist, f.Sort) {
 		return strings.TrimPrefix(f.Sort, "-")
 	}
@@ -38,3 +38,12 @@ func (f Filters) sortDirection() string {
 
   return "ASC"
 }
+
+func (f Filters) limit() int {
+  return f.PageSize
+}
+
+func (f Filters) offset() int {
+  return (f.Page - 1) * f.PageSize
+}
+
