@@ -24,6 +24,10 @@ func (app *application) recoverPanic(next http.Handler) http.Handler {
 }
 
 func (app *application) rateLimit(next http.Handler) http.Handler {
+  if !app.config.rateLimiter.enabled {
+    return next
+  }
+
   type client struct {
     limiter *rate.Limiter
     lastSeen time.Time
@@ -52,15 +56,18 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 
   return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
     ip := realip.FromRequest(r)
+
     mu.Lock()
+
     if _, found := clients[ip]; !found {
-      clients[ip] = &client{limiter: rate.NewLimiter(2, 4)}
+      clients[ip] = &client{limiter: rate.NewLimiter(rate.Limit(app.config.rateLimiter.rps), app.config.rateLimiter.burst)}
     }
 
     clients[ip].lastSeen = time.Now()
 
     if !clients[ip].limiter.Allow() {
       mu.Unlock()
+
       app.rateLimitExceededResponse(w, r)
       return
     }
