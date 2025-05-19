@@ -46,10 +46,10 @@ func (app *application) serve() error {
 	}
 
 	err = <-shutdownError
-  if err != nil {
-    return err
-  }
+	if err != nil {
+		return err
+	}
 
-  app.logger.Info("stopped server", "addr", srv.Addr)
-  return nil
+	app.logger.Info("stopped server", "addr", srv.Addr)
+	return nil
 }

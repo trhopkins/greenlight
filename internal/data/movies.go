@@ -176,14 +176,14 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 
 	defer rows.Close()
 
-  totalRecords := 0
+	totalRecords := 0
 	movies := []*Movie{}
 
 	for rows.Next() {
 		var movie Movie
 
 		err := rows.Scan(
-      &totalRecords,
+			&totalRecords,
 			&movie.Id,
 			&movie.CreatedAt,
 			&movie.Title,
@@ -203,7 +203,7 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 		return nil, Metadata{}, err
 	}
 
-  metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
 
 	return movies, metadata, nil
 }

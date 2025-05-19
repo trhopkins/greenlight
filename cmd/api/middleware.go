@@ -24,56 +24,56 @@ func (app *application) recoverPanic(next http.Handler) http.Handler {
 }
 
 func (app *application) rateLimit(next http.Handler) http.Handler {
-  if !app.config.rateLimiter.enabled {
-    return next
-  }
+	if !app.config.rateLimiter.enabled {
+		return next
+	}
 
-  type client struct {
-    limiter *rate.Limiter
-    lastSeen time.Time
-  }
+	type client struct {
+		limiter  *rate.Limiter
+		lastSeen time.Time
+	}
 
-  var (
-    mu sync.Mutex
-    clients = make(map[string]*client)
-  )
+	var (
+		mu      sync.Mutex
+		clients = make(map[string]*client)
+	)
 
-  go func() {
-    for {
-      time.Sleep(time.Minute)
+	go func() {
+		for {
+			time.Sleep(time.Minute)
 
-      mu.Lock()
+			mu.Lock()
 
-      for ip, client := range clients {
-        if time.Since(client.lastSeen) > 3*time.Minute {
-          delete(clients, ip)
-        }
-      }
+			for ip, client := range clients {
+				if time.Since(client.lastSeen) > 3*time.Minute {
+					delete(clients, ip)
+				}
+			}
 
-      mu.Unlock()
-    }
-  }()
+			mu.Unlock()
+		}
+	}()
 
-  return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    ip := realip.FromRequest(r)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := realip.FromRequest(r)
 
-    mu.Lock()
+		mu.Lock()
 
-    if _, found := clients[ip]; !found {
-      clients[ip] = &client{limiter: rate.NewLimiter(rate.Limit(app.config.rateLimiter.rps), app.config.rateLimiter.burst)}
-    }
+		if _, found := clients[ip]; !found {
+			clients[ip] = &client{limiter: rate.NewLimiter(rate.Limit(app.config.rateLimiter.rps), app.config.rateLimiter.burst)}
+		}
 
-    clients[ip].lastSeen = time.Now()
+		clients[ip].lastSeen = time.Now()
 
-    if !clients[ip].limiter.Allow() {
-      mu.Unlock()
+		if !clients[ip].limiter.Allow() {
+			mu.Unlock()
 
-      app.rateLimitExceededResponse(w, r)
-      return
-    }
+			app.rateLimitExceededResponse(w, r)
+			return
+		}
 
-    mu.Unlock()
+		mu.Unlock()
 
-    next.ServeHTTP(w, r)
-  })
+		next.ServeHTTP(w, r)
+	})
 }

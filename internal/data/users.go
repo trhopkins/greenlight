@@ -115,60 +115,59 @@ func (m *UserModel) GetByEmail(email string) (*User, error) {
 
 	var user User
 
-  ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-  defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 
-  err := m.DB.QueryRowContext(ctx, query, email).Scan(
-    &user.Id,
-    &user.CreatedAt,
-    &user.Name,
-    &user.Email,
-    &user.Password.hash,
-    &user.Activated,
-    &user.Version,
-  )
+	err := m.DB.QueryRowContext(ctx, query, email).Scan(
+		&user.Id,
+		&user.CreatedAt,
+		&user.Name,
+		&user.Email,
+		&user.Password.hash,
+		&user.Activated,
+		&user.Version,
+	)
 
-  if err != nil {
-    if errors.Is(err, sql.ErrNoRows) {
-      return nil, ErrRecordNotFound
-    } else {
-      return nil, err
-    }
-  }
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrRecordNotFound
+		} else {
+			return nil, err
+		}
+	}
 
-  return &user, nil
+	return &user, nil
 }
 
 func (m *UserModel) Update(user *User) error {
-  query := `
+	query := `
     UPDATE users
     SET name = $1, email = $2, password_hash = $3, activated = $4, version = version + 1
     WHERE id = $5 AND version = $6
     RETURNING version`
-  ;
 
-  ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-  defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 
-  args := []any{
-    user.Name,
-    user.Email,
-    user.Password.hash,
-    user.Activated,
-    user.Id,
-    user.Version,
-  }
+	args := []any{
+		user.Name,
+		user.Email,
+		user.Password.hash,
+		user.Activated,
+		user.Id,
+		user.Version,
+	}
 
-  err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.Version)
-  if err != nil {
-    if err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"` {
-      return ErrDuplicateEmail
-    } else if errors.Is(err, sql.ErrNoRows) {
-      return ErrEditConflict
-    } else {
-      return err
-    }
-  }
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.Version)
+	if err != nil {
+		if err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"` {
+			return ErrDuplicateEmail
+		} else if errors.Is(err, sql.ErrNoRows) {
+			return ErrEditConflict
+		} else {
+			return err
+		}
+	}
 
-  return nil
+	return nil
 }

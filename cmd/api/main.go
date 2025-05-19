@@ -23,11 +23,11 @@ type config struct {
 		maxIdleConns int
 		maxIdleTime  time.Duration
 	}
-  rateLimiter struct {
-    rps float64
-    burst int
-    enabled bool
-  }
+	rateLimiter struct {
+		rps     float64
+		burst   int
+		enabled bool
+	}
 }
 
 type application struct {
@@ -46,9 +46,9 @@ func main() {
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connections")
 	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 15*time.Minute, "PostgreSQL max idle time")
 
-  flag.Float64Var(&cfg.rateLimiter.rps, "limiter-requests-per-second", 2, "Rate limiter maximum requests per second")
-  flag.IntVar(&cfg.rateLimiter.burst, "limiter-burst-rps", 4, "Rate limiter maximum burst")
-  flag.BoolVar(&cfg.rateLimiter.enabled, "limiter-enabled", true, "Enable rate limiter")
+	flag.Float64Var(&cfg.rateLimiter.rps, "limiter-requests-per-second", 2, "Rate limiter maximum requests per second")
+	flag.IntVar(&cfg.rateLimiter.burst, "limiter-burst-rps", 4, "Rate limiter maximum burst")
+	flag.BoolVar(&cfg.rateLimiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 
 	flag.Parse()
 
@@ -70,11 +70,11 @@ func main() {
 		models: data.NewModels(db),
 	}
 
-  err = app.serve()
-  if err != nil {
-    logger.Error(err.Error())
-    os.Exit(1)
-  }
+	err = app.serve()
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
 }
 
 func openDB(cfg config) (*sql.DB, error) {
