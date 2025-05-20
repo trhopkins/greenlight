@@ -44,7 +44,7 @@ func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	headers := make(http.Header)
-	headers.Set("Location", fmt.Sprintf("/v1/movies/%d", movie.Id))
+	headers.Set("Location", fmt.Sprintf("/v1/movies/%d", movie.ID))
 
 	err = app.writeJSON(w, http.StatusCreated, envelope{"movie": movie}, headers)
 	if err != nil {
@@ -136,6 +136,7 @@ func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Reques
 			app.editConflictResponse(w, r)
 			return
 		}
+
 		app.serverErrorResponse(w, r, err)
 		return
 	}

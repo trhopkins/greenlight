@@ -14,8 +14,18 @@ var (
 	ErrDuplicateEmail = errors.New("duplicate email")
 )
 
+// type User struct {
+//     ID        int64     `json:"id"`
+//     CreatedAt time.Time `json:"created_at"`
+//     Name      string    `json:"name"`
+//     Email     string    `json:"email"`
+//     Password  password  `json:"-"`
+//     Activated bool      `json:"activated"`
+//     Version   int       `json:"-"`
+// }
+
 type User struct {
-	Id        int       `json:"id"`
+	ID        int       `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
@@ -58,18 +68,18 @@ func (p *password) Matches(plaintextPassword string) (bool, error) {
 	return true, nil
 }
 
-func ValidateEmail(v validator.Validator, email string) {
+func ValidateEmail(v *validator.Validator, email string) {
 	v.Check(email != "", "email", "must be provided")
 	v.Check(validator.Matches(email, validator.EmailRX), "email", "must be a valid email address")
 }
 
-func ValidatePasswordPlaintext(v validator.Validator, password string) {
+func ValidatePasswordPlaintext(v *validator.Validator, password string) {
 	v.Check(password != "", "password", "cannot be empty")
-	v.Check(len(password) < 8, "password", "must not be less than 8 bytes long")
-	v.Check(len(password) > 72, "password", "must not be more than 72 bytes long")
+	v.Check(len(password) >= 8, "password", "must be at least 8 bytes long")
+	v.Check(len(password) <= 72, "password", "must not be more than 72 bytes long")
 }
 
-func ValidateUser(v validator.Validator, user *User) {
+func ValidateUser(v *validator.Validator, user *User) {
 	v.Check(user.Name != "", "name", "cannot be empty")
 	v.Check(len(user.Name) <= 500, "name", "must not be more than 500 bytes long")
 
@@ -79,27 +89,32 @@ func ValidateUser(v validator.Validator, user *User) {
 		ValidatePasswordPlaintext(v, *user.Password.plaintext)
 	}
 
-	if user.Password.hash != nil {
+	if user.Password.hash == nil {
 		panic("missing password hash for user")
 	}
 }
 
-func (m *UserModel) Insert(user *User) error {
+func (m UserModel) Insert(user *User) error {
 	query := `
-    INSERT INTO users (name, email, password_hash, activated)
-    VALUES ($!, $2, $3, $4)
-    RETURNING id, created_at, version`
+        INSERT INTO users (name, email, password_hash, activated) 
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, created_at, version`
 
 	args := []any{user.Name, user.Email, user.Password.hash, user.Activated}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.CreatedAt, &user.Version)
+	// If the table already contains a record with this email address, then when we try
+	// to perform the insert there will be a violation of the UNIQUE "users_email_key"
+	// constraint that we set up in the previous chapter. We check for this error
+	// specifically, and return custom ErrDuplicateEmail error instead.
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		switch {
+		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
 			return ErrDuplicateEmail
-		} else {
+		default:
 			return err
 		}
 	}
@@ -107,11 +122,14 @@ func (m *UserModel) Insert(user *User) error {
 	return nil
 }
 
-func (m *UserModel) GetByEmail(email string) (*User, error) {
+// Retrieve the User details from the database based on the user's email address.
+// Because we have a UNIQUE constraint on the email column, this SQL query will only
+// return one record (or none at all, in which case we return a ErrRecordNotFound error).
+func (m UserModel) GetByEmail(email string) (*User, error) {
 	query := `
-    SELECT id, created_at, name, email, password_hash, activated, version
-    FROM users
-    WHERE email = $1`
+        SELECT id, created_at, name, email, password_hash, activated, version
+        FROM users
+        WHERE email = $1`
 
 	var user User
 
@@ -119,7 +137,7 @@ func (m *UserModel) GetByEmail(email string) (*User, error) {
 	defer cancel()
 
 	err := m.DB.QueryRowContext(ctx, query, email).Scan(
-		&user.Id,
+		&user.ID,
 		&user.CreatedAt,
 		&user.Name,
 		&user.Email,
@@ -129,9 +147,10 @@ func (m *UserModel) GetByEmail(email string) (*User, error) {
 	)
 
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
 			return nil, ErrRecordNotFound
-		} else {
+		default:
 			return nil, err
 		}
 	}
@@ -139,32 +158,38 @@ func (m *UserModel) GetByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
-func (m *UserModel) Update(user *User) error {
+// Update the details for a specific user. Notice that we check against the version
+// field to help prevent any race conditions during the request cycle, just like we did
+// when updating a movie. And we also check for a violation of the "users_email_key"
+// constraint when performing the update, just like we did when inserting the user
+// record originally.
+func (m UserModel) Update(user *User) error {
 	query := `
-    UPDATE users
-    SET name = $1, email = $2, password_hash = $3, activated = $4, version = version + 1
-    WHERE id = $5 AND version = $6
-    RETURNING version`
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+        UPDATE users 
+        SET name = $1, email = $2, password_hash = $3, activated = $4, version = version + 1
+        WHERE id = $5 AND version = $6
+        RETURNING version`
 
 	args := []any{
 		user.Name,
 		user.Email,
 		user.Password.hash,
 		user.Activated,
-		user.Id,
+		user.ID,
 		user.Version,
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
 	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.Version)
 	if err != nil {
-		if err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"` {
+		switch {
+		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
 			return ErrDuplicateEmail
-		} else if errors.Is(err, sql.ErrNoRows) {
+		case errors.Is(err, sql.ErrNoRows):
 			return ErrEditConflict
-		} else {
+		default:
 			return err
 		}
 	}
