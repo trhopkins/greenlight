@@ -14,18 +14,8 @@ var (
 	ErrDuplicateEmail = errors.New("duplicate email")
 )
 
-// type User struct {
-//     ID        int64     `json:"id"`
-//     CreatedAt time.Time `json:"created_at"`
-//     Name      string    `json:"name"`
-//     Email     string    `json:"email"`
-//     Password  password  `json:"-"`
-//     Activated bool      `json:"activated"`
-//     Version   int       `json:"-"`
-// }
-
 type User struct {
-	ID        int       `json:"id"`
+	Id        int       `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
@@ -105,11 +95,7 @@ func (m UserModel) Insert(user *User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	// If the table already contains a record with this email address, then when we try
-	// to perform the insert there will be a violation of the UNIQUE "users_email_key"
-	// constraint that we set up in the previous chapter. We check for this error
-	// specifically, and return custom ErrDuplicateEmail error instead.
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version)
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.Id, &user.CreatedAt, &user.Version)
 	if err != nil {
 		switch {
 		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
@@ -122,9 +108,6 @@ func (m UserModel) Insert(user *User) error {
 	return nil
 }
 
-// Retrieve the User details from the database based on the user's email address.
-// Because we have a UNIQUE constraint on the email column, this SQL query will only
-// return one record (or none at all, in which case we return a ErrRecordNotFound error).
 func (m UserModel) GetByEmail(email string) (*User, error) {
 	query := `
         SELECT id, created_at, name, email, password_hash, activated, version
@@ -137,7 +120,7 @@ func (m UserModel) GetByEmail(email string) (*User, error) {
 	defer cancel()
 
 	err := m.DB.QueryRowContext(ctx, query, email).Scan(
-		&user.ID,
+		&user.Id,
 		&user.CreatedAt,
 		&user.Name,
 		&user.Email,
@@ -158,11 +141,6 @@ func (m UserModel) GetByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
-// Update the details for a specific user. Notice that we check against the version
-// field to help prevent any race conditions during the request cycle, just like we did
-// when updating a movie. And we also check for a violation of the "users_email_key"
-// constraint when performing the update, just like we did when inserting the user
-// record originally.
 func (m UserModel) Update(user *User) error {
 	query := `
         UPDATE users 
@@ -175,7 +153,7 @@ func (m UserModel) Update(user *User) error {
 		user.Email,
 		user.Password.hash,
 		user.Activated,
-		user.ID,
+		user.Id,
 		user.Version,
 	}
 
