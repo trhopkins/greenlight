@@ -39,7 +39,7 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 	)
 
 	go func() {
-		for {
+	for {
 			time.Sleep(time.Minute)
 
 			mu.Lock()
