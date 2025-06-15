@@ -14,7 +14,7 @@ import (
 	"greenlight.camphopkins.com/internal/validator"
 )
 
-func (app *application) readIdParam(r *http.Request) (int64, error) {
+func (app *application) readIDParam(r *http.Request) (int64, error) {
 	params := httprouter.ParamsFromContext(r.Context())
 
 	id, err := strconv.ParseInt(params.ByName("id"), 10, 64)

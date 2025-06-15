@@ -62,9 +62,9 @@ func main() {
 	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
 	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
 	// TODO: reset username and password later
-	flag.StringVar(&cfg.smtp.username, "smtp-username", "2bffbf95f24e3c", "SMTP username")
-	flag.StringVar(&cfg.smtp.password, "smtp-password", "dab0e9c6b01d8f", "SMTP password")
-	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@camphopkins.com>", "SMTP sender")
+	flag.StringVar(&cfg.smtp.username, "smtp-username", "914ddefbb7a799", "SMTP username")
+	flag.StringVar(&cfg.smtp.password, "smtp-password", "6b4bc380d0f9ba", "SMTP password")
+	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.alexedwards.net>", "SMTP sender")
 
 	flag.Parse()
 
@@ -78,17 +78,17 @@ func main() {
 
 	defer db.Close()
 
-  mailer, err := mailer.New(
-    cfg.smtp.host,
-    cfg.smtp.port,
-    cfg.smtp.username,
-    cfg.smtp.password,
-    cfg.smtp.sender,
-  )
-  if err != nil {
-    logger.Error(err.Error())
-    os.Exit(1)
-  }
+	mailer, err := mailer.New(
+		cfg.smtp.host,
+		cfg.smtp.port,
+		cfg.smtp.username,
+		cfg.smtp.password,
+		cfg.smtp.sender,
+	)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
 
 	logger.Info("database connection pool established")
 
@@ -96,10 +96,10 @@ func main() {
 		config: cfg,
 		logger: logger,
 		models: data.NewModels(db),
-    mailer: mailer,
+		mailer: mailer,
 	}
 
-	err = app.serve()
+	err = app.Serve()
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
