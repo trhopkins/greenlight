@@ -24,10 +24,10 @@ type config struct {
 		maxIdleConns int
 		maxIdleTime  time.Duration
 	}
-	rateLimiter struct {
+	limiter struct {
+		enabled bool
 		rps     float64
 		burst   int
-		enabled bool
 	}
 	smtp struct {
 		host     string
@@ -38,6 +38,7 @@ type config struct {
 	}
 }
 
+// Update the application struct to hold a pointer to a new Mailer instance.
 type application struct {
 	config config
 	logger *slog.Logger
@@ -47,23 +48,28 @@ type application struct {
 
 func main() {
 	var cfg config
+
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 
-	flag.StringVar(&cfg.db.dsn, "dsn", os.Getenv("GREENLIGHT_DB_DSN"), "PostgreSQL DSN")
+	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("GREENLIGHT_DB_DSN"), "PostgreSQL DSN")
+
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connections")
-	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 15*time.Minute, "PostgreSQL max idle time")
+	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 15*time.Minute, "PostgreSQL max connection idle time")
 
-	flag.Float64Var(&cfg.rateLimiter.rps, "limiter-requests-per-second", 2, "Rate limiter maximum requests per second")
-	flag.IntVar(&cfg.rateLimiter.burst, "limiter-burst-rps", 4, "Rate limiter maximum burst")
-	flag.BoolVar(&cfg.rateLimiter.enabled, "limiter-enabled", true, "Enable rate limiter")
+	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
+	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter maximum requests per second")
+	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
 
+	// Read the SMTP server configuration settings into the config struct, using the
+	// Mailtrap settings as the default values. IMPORTANT: If you're following along,
+	// make sure to replace the default values for smtp-username and smtp-password
+	// with your own Mailtrap credentials.
 	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
 	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
-	// TODO: reset username and password later
-	flag.StringVar(&cfg.smtp.username, "smtp-username", "914ddefbb7a799", "SMTP username")
-	flag.StringVar(&cfg.smtp.password, "smtp-password", "6b4bc380d0f9ba", "SMTP password")
+	flag.StringVar(&cfg.smtp.username, "smtp-username", "a7420fc0883489", "SMTP username")
+	flag.StringVar(&cfg.smtp.password, "smtp-password", "e75ffd0a3aa5ec", "SMTP password")
 	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.alexedwards.net>", "SMTP sender")
 
 	flag.Parse()
@@ -75,23 +81,19 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-
 	defer db.Close()
 
-	mailer, err := mailer.New(
-		cfg.smtp.host,
-		cfg.smtp.port,
-		cfg.smtp.username,
-		cfg.smtp.password,
-		cfg.smtp.sender,
-	)
+	logger.Info("database connection pool established")
+
+	// Initialize a new Mailer instance using the settings from the command line
+	// flags.
+	mailer, err := mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender)
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
 
-	logger.Info("database connection pool established")
-
+	// And add it to the application struct.
 	app := &application{
 		config: cfg,
 		logger: logger,
@@ -99,7 +101,7 @@ func main() {
 		mailer: mailer,
 	}
 
-	err = app.Serve()
+	err = app.serve()
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
